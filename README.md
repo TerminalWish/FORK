@@ -1,7 +1,5 @@
 # FORK
- Food Operations & Resource Kit
- 
- FORK Offers all of the essential tools for running a restaurant smoothly.
+FORK (Food Operation & Resource Kit) Offers all of the essential tools for running a restaurant smoothly.
 
 ## Why Choose FORK?
 In response to the complexities and inefficiencies of current restaurant technology, FORK is designed to be the ultimate all-in-one solution for restaurants' on-premises technology needs. Unlike traditional systems that rely on a patchwork of software packages--each with its own configuration and technical demands--FORK consolidates essential tools into a single, streamlined platform.
