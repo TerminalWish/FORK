@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primeval Pyre - Employee Menu Interface</title>
+    <style>
+        /* Center the spinner and make it spin */
+        #loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 6px solid #ccc;            /* Light gray border */
+            border-top-color: #b22222;          /* Dark red border for contrast */
+            border-radius: 50%;                 /* Make it a circle */
+            animation: spin 0.8s linear infinite; /* Spin animation */
+        }
+
+        /* Spin animation keyframes */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Styling for the restaurant title */
+        h1 {
+            font-family: 'Times New Roman', serif;
+            font-size: 3em;
+            text-align: center;
+            color: #b22222; /* Dark red, giving a fiery feel */
+            margin-bottom: 20px;
+            text-shadow: 2px 2px #660000;
+        }
+        /* Button styling for category selections */
+        .category-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 1.2em;
+            background-color: #8b4513; /* Earthy brown */
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .category-button:hover {
+            background-color: #a0522d; /* Slightly lighter brown on hover */
+        }
+        
+        /* Styling for menu cards */
+        .menu-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 150px;
+            padding: 15px;
+            margin: 10px;
+            background-color: #f5f5f5;         /* Light gray for card background */
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease;   /* Smooth scale-up effect on hover */
+        }
+
+        .menu-card:hover {
+            transform: scale(1.05);            /* Slight scale on hover for feedback */
+            border-color: #b22222;             /* Dark red border on hover */
+        }
+
+        .menu-card h3 {
+            margin: 0;
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        .menu-card p {
+            margin: 5px 0 0;
+            color: #666;
+        }
+
+        /* Flex container for menu list */
+        #menu-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 0;
+            list-style: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Stylized Restaurant Title -->
+    <h1>Primeval Pyre</h1>
+
+    <!-- Category Selection Buttons -->
+    <div id="category-buttons">
+        <button class="category-button" onclick="fetchCategory('drink')">Drink</button>
+        <button class="category-button" onclick="fetchCategory('appetizer')">Appetizer</button>
+        <button class="category-button" onclick="fetchCategory('entree')">Entree</button>
+        <button class="category-button" onclick="fetchCategory('side')">Side</button>
+        <button class="category-button" onclick="fetchCategory('dessert')">Dessert</button>
+    </div>
+
+    <!-- Loading spinner -->
+    <div id="loading" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Container to display the menu items -->
+    <ul id="menu-list"></ul>
+
+    <script>
+        // Generalized function to fetch menu items by category
+        function fetchCategory(category) {
+            document.getElementById('loading').style.display = 'block';
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';  // Clear previous items
+            fetch(`/get_menu/${category}`)
+                .then(response => response.json())
+                .then(menuItems => {
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    if (menuItems.error) {
+                        alert(menuItems.error);  // Show an alert if there's an error
+                    } else {
+                        menuItems.forEach(item => {
+                            // Create a card element for each menu item
+                            const card = document.createElement('div');
+                            card.classList.add('menu-card');
+                            card.setAttribute('data-id', item.id); // Set data-id to the item's ID
+                            card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
+
+                            // Add click event listener to get the item's ID
+                            card.addEventListener('click', () => {
+                                const itemId = card.getAttribute('data-id');
+                                console.log("Clicked item ID:", itemId); // Logs item ID to console
+                                // You can further process the ID here, such as showing item details
+                            });
+
+                            menuListElement.appendChild(card);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching menu category:', error);
+                    alert('Could not load menu items. Please try again.');
+                });
+        }
+    </script>
+</body>
+</html>
