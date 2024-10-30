@@ -3,160 +3,339 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Primeval Pyre - Employee Menu Interface</title>
+    <title>Employee Menu Interface</title>
     <style>
-        /* Center the spinner and make it spin */
-        #loading {
+        /* Full screen layout */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-top: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #eaeaea;
         }
 
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 6px solid #ccc;            /* Light gray border */
-            border-top-color: #b22222;          /* Dark red border for contrast */
-            border-radius: 50%;                 /* Make it a circle */
-            animation: spin 0.8s linear infinite; /* Spin animation */
+        /* Main container */
+        #main-container {
+            display: flex;
+            width: 90vw;
+            height: 90vh;
+            gap: 2%;
+            position: relative;
         }
 
-        /* Spin animation keyframes */
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(360deg);
-            }
+        /* Apply grid layout to #menu-list and #side-options */
+        #menu-list, #side-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            justify-content: center;
         }
 
-        /* Styling for the restaurant title */
-        h1 {
-            font-family: 'Times New Roman', serif;
-            font-size: 3em;
+        /* Order box styling */
+        #order-box, #menu-container {
+            flex: 1;
+            padding: 20px;
+            border: 2px solid #8b4513;
+            border-radius: 10px;
+            background-color: #f5f5f5;
+            overflow-y: auto;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Title styling */
+        #order-title {
+            font-size: 1.8em;
+            color: #b22222;
+            margin-bottom: 10px;
             text-align: center;
-            color: #b22222; /* Dark red, giving a fiery feel */
-            margin-bottom: 20px;
-            text-shadow: 2px 2px #660000;
+            font-family: 'Times New Roman', serif;
         }
-        /* Button styling for category selections */
+
+        /* Order item styling */
+        .order-item {
+            display: block; /* Make them block-level for full width */
+            padding: 10px;
+            margin: 5px 0;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .order-item h3 {
+            font-weight: bold;
+            margin: 0;
+        }
+
+        /* Hover effect for order items */
+        .order-item:hover {
+            background-color: #f0e68c; /* Light gold on hover */
+            transform: scale(1.02);
+        }
+
+        /* Adjust mod list to remove extra space and align under entree */
+        .mod-list {
+            margin: 5px 0 0 15px;
+            padding-left: 0;
+        }
+
+        .mod-list li {
+            list-style-type: none;
+            padding-left: 1em;
+            text-indent: -1em;
+        }
+
+        .mod-list li:before {
+            content: "- ";
+        }
+
+        /* Category buttons */
+        #category-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 15px;
+            transition: transform 0.5s, opacity 0.5s;
+        }
+
+        .hidden {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
         .category-button {
-            display: inline-block;
             padding: 10px 20px;
-            margin: 10px;
-            font-size: 1.2em;
-            background-color: #8b4513; /* Earthy brown */
+            margin: 5px;
+            font-size: 1em;
+            background-color: #8b4513;
             color: #fff;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            transition: background-color 0.3s;
         }
-        .category-button:hover {
-            background-color: #a0522d; /* Slightly lighter brown on hover */
-        }
-        
-        /* Styling for menu cards */
+
+        /* Menu card styling */
         .menu-card {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
             width: 150px;
             padding: 15px;
-            margin: 10px;
-            background-color: #f5f5f5;         /* Light gray for card background */
+            background-color: #fff;
             border: 1px solid #ccc;
             border-radius: 8px;
             cursor: pointer;
-            transition: transform 0.2s ease;   /* Smooth scale-up effect on hover */
+            text-align: center;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
         }
 
-        .menu-card:hover {
-            transform: scale(1.05);            /* Slight scale on hover for feedback */
-            border-color: #b22222;             /* Dark red border on hover */
-        }
-
-        .menu-card h3 {
-            margin: 0;
+        #selected-entree {
+            display: none;
+            margin: 10px 0;
+            padding: 10px;
             font-size: 1.2em;
-            color: #333;
+            color: #fff;
+            background-color: #b22222;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
         }
 
-        .menu-card p {
-            margin: 5px 0 0;
-            color: #666;
-        }
-
-        /* Flex container for menu list */
-        #menu-list {
+        #side-options {
             display: flex;
             flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
             justify-content: center;
-            padding: 0;
-            list-style: none;
+        }
+
+        /* Position Complete Selections Button */
+        #complete-selections {
+            display: none; /* Hidden by default */
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #8b4513;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #complete-selections:hover {
+            background-color: #a0522d;
         }
     </style>
 </head>
 <body>
-    <!-- Stylized Restaurant Title -->
-    <h1>Primeval Pyre</h1>
+    <div id="main-container">
+        <div id="order-box">
+            <div id="order-title">Current Order</div>
+            <div id="order-details"></div>
+        </div>
 
-    <!-- Category Selection Buttons -->
-    <div id="category-buttons">
-        <button class="category-button" onclick="fetchCategory('drink')">Drink</button>
-        <button class="category-button" onclick="fetchCategory('appetizer')">Appetizer</button>
-        <button class="category-button" onclick="fetchCategory('entree')">Entree</button>
-        <button class="category-button" onclick="fetchCategory('side')">Side</button>
-        <button class="category-button" onclick="fetchCategory('dessert')">Dessert</button>
+        <div id="menu-container">
+            <div id="category-buttons">
+                <button class="category-button" onclick="fetchCategory('drink')">Drink</button>
+                <button class="category-button" onclick="fetchCategory('appetizer')">Appetizer</button>
+                <button class="category-button" onclick="fetchCategory('entree')">Entree</button>
+                <button class="category-button" onclick="fetchCategory('side')">Side</button>
+                <button class="category-button" onclick="fetchCategory('dessert')">Dessert</button>
+            </div>
+
+            <button id="selected-entree" onclick="resetCategoryView()">Entree Selected: <span id="entree-name"></span></button>
+
+            <ul id="menu-list"></ul>
+
+            <div id="side-options"></div>
+            <button id="complete-selections" onclick="completeMods()">Done</button>
+        </div>
     </div>
-
-    <!-- Loading spinner -->
-    <div id="loading" style="display: none;">
-        <div class="spinner"></div>
-    </div>
-
-    <!-- Container to display the menu items -->
-    <ul id="menu-list"></ul>
 
     <script>
-        // Generalized function to fetch menu items by category
+        const currentOrder = {};
+        let seatNumber = 1;
+
+        // Fetch category and display items
         function fetchCategory(category) {
-            document.getElementById('loading').style.display = 'block';
             const menuListElement = document.getElementById('menu-list');
-            menuListElement.innerHTML = '';  // Clear previous items
+            menuListElement.innerHTML = '';
+
             fetch(`/get_menu/${category}`)
                 .then(response => response.json())
-                .then(menuItems => {
-                    document.getElementById('loading').style.display = 'none';
-                    
-                    if (menuItems.error) {
-                        alert(menuItems.error);  // Show an alert if there's an error
-                    } else {
-                        menuItems.forEach(item => {
-                            // Create a card element for each menu item
-                            const card = document.createElement('div');
-                            card.classList.add('menu-card');
-                            card.setAttribute('data-id', item.id); // Set data-id to the item's ID
-                            card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
+                .then(menuItems => displayMenuItems(menuItems, category))
+                .catch(error => console.error('Error fetching menu category:', error));
+        }
 
-                            // Add click event listener to get the item's ID
-                            card.addEventListener('click', () => {
-                                const itemId = card.getAttribute('data-id');
-                                console.log("Clicked item ID:", itemId); // Logs item ID to console
-                                // You can further process the ID here, such as showing item details
-                            });
+        // Display menu items in menu container
+        function displayMenuItems(menuItems, category) {
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
 
-                            menuListElement.appendChild(card);
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching menu category:', error);
-                    alert('Could not load menu items. Please try again.');
+            menuItems.forEach(item => {
+                const card = document.createElement('div');
+                card.classList.add('menu-card');
+                card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
+
+                if (category === 'entree') {
+                    card.addEventListener('click', () => selectEntree(item));
+                } else {
+                    card.addEventListener('click', () => addItemToOrder(seatNumber++, item.name));
+                }
+
+                menuListElement.appendChild(card);
+            });
+        }
+
+        // Handle entree selection
+        function selectEntree(entree) {
+            document.getElementById('category-buttons').classList.add('hidden');
+            document.getElementById('selected-entree').style.display = 'block';
+            document.getElementById('entree-name').textContent = entree.name;
+            document.getElementById('complete-selections').style.display = 'block';
+
+            addItemToOrder(seatNumber++, entree.name, entree.id);
+
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
+
+            fetch(`/get_menu/side`)
+                .then(response => response.json())
+                .then(sideItems => displaySideOptions(sideItems))
+                .catch(error => console.error('Error fetching sides:', error));
+        }
+
+        // Display side options
+        function displaySideOptions(sides) {
+            const sideOptionsContainer = document.getElementById('side-options');
+            sideOptionsContainer.innerHTML = '';
+
+            sides.forEach(side => {
+                const sideButton = document.createElement('div');
+                sideButton.classList.add('menu-card');
+                sideButton.innerHTML = `<h3>${side.name}</h3>`;
+                sideButton.addEventListener('click', () => addSideToEntree(side));
+                sideOptionsContainer.appendChild(sideButton);
+            });
+        }
+
+        // Add selected side as a "mod" to the entree in the order
+        function addSideToEntree(side) {
+            const lastSeatNumber = Object.keys(currentOrder).pop();
+            if (lastSeatNumber) {
+                currentOrder[lastSeatNumber].mods = currentOrder[lastSeatNumber].mods || [];
+                currentOrder[lastSeatNumber].mods.push({'name': side.name, 'id': side.id});
+            }
+            displayOrder();
+        }
+
+        // Add item to order
+        function addItemToOrder(seatNum, itemName, itemId) {
+            currentOrder[seatNum] = { name: itemName, id: itemId, mods: {} };
+            displayOrder();
+        }
+
+        // Display order items with mods
+        function displayOrder() {
+            const orderDetails = document.getElementById('order-details');
+            orderDetails.innerHTML = '';
+
+            Object.values(currentOrder).forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.classList.add('order-item');
+                itemDiv.innerHTML = `<h3>${item.name}</h3>`;
+
+                if (item.mods && item.mods.length) {
+                    const modList = document.createElement('ul');
+                    modList.classList.add('mod-list');
+                    modList.innerHTML = item.mods.map(mod => `<li>${mod.name}</li>`).join('');
+                    itemDiv.appendChild(modList);
+                }
+
+                // Log the item ID to the console when the order-item is clicked
+                itemDiv.addEventListener('click', () => {
+                    console.log(`Selected ID: ${item.id}`);
+
+                    // Loop through each mod to print its ID
+                    item.mods.forEach(mod => {
+                        console.log(`Selected Mod ID: ${mod.id}`);
+                    });
                 });
+
+                orderDetails.appendChild(itemDiv);
+            });
+
+        }
+        
+        function completeMods() {
+            document.getElementById('category-buttons').classList.remove('hidden');
+            document.getElementById('selected-entree').style.display = 'none';
+            document.getElementById('complete-selections').style.display = 'none';
+            document.getElementById('side-options').innerHTML = '';
+
+            const selectedIds = Object.values(currentOrder).map(item => item.id);
+            console.log("Completed Order IDs:", selectedIds);
+        }
+
+        // Reset view to category selection
+        function resetCategoryView() {
+            document.getElementById('category-buttons').classList.remove('hidden');
+            document.getElementById('selected-entree').style.display = 'none';
+            document.getElementById('complete-selections').style.display = 'none';
+            document.getElementById('side-options').innerHTML = '';
+        }
+
+        function addItemToOrder(seatNum, itemName, itemId) {
+            currentOrder[seatNum] = { seatNum: seatNum, name: itemName, id: itemId, quantity: 1, mods: [] };
+            displayOrder();
         }
     </script>
 </body>
