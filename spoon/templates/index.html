@@ -184,25 +184,24 @@
 
         <div id="menu-container">
             <div id="category-buttons">
-                <button class="category-button" onclick="fetchCategory('drink')">Drink</button>
-                <button class="category-button" onclick="fetchCategory('appetizer')">Appetizer</button>
-                <button class="category-button" onclick="fetchCategory('entree')">Entree</button>
-                <button class="category-button" onclick="fetchCategory('side')">Side</button>
-                <button class="category-button" onclick="fetchCategory('dessert')">Dessert</button>
+                <button class="category-button" onclick="fetchCategory('Drink')">Drink</button>
+                <button class="category-button" onclick="fetchCategory('Appetizer')">Appetizer</button>
+                <button class="category-button" onclick="fetchCategory('Entree')">Entree</button>
+                <button class="category-button" onclick="fetchCategory('Side')">Side</button>
+                <button class="category-button" onclick="fetchCategory('Dessert')">Dessert</button>
             </div>
 
             <button id="selected-entree" onclick="resetCategoryView()">Entree Selected: <span id="entree-name"></span></button>
 
             <ul id="menu-list"></ul>
-
             <div id="side-options"></div>
-            <button id="complete-selections" onclick="completeMods()">Done</button>
+            <button id="complete-selections" onclick="finalizeOrder()">Done</button>
         </div>
     </div>
 
     <script>
-        const currentOrder = {};
         let seatNumber = 1;
+        let tableNum = "1"; // Replace this with the actual table number for each device
 
         // Fetch category and display items
         function fetchCategory(category) {
@@ -225,35 +224,55 @@
                 card.classList.add('menu-card');
                 card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
 
-                if (category === 'entree') {
+                // Check if the category is 'Entree' to call selectEntree, otherwise call addItemToOrder
+                if (category === 'Entree') {
                     card.addEventListener('click', () => selectEntree(item));
                 } else {
-                    card.addEventListener('click', () => addItemToOrder(seatNumber++, item.name));
+                    card.addEventListener('click', () => addItemToOrder(item));
                 }
 
                 menuListElement.appendChild(card);
             });
         }
 
-        // Handle entree selection
+        // Define addItemToOrder function for non-entree items
+        function addItemToOrder(item) {
+            fetch('/order/add_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    table_num: tableNum,
+                    seat_number: seatNumber++,  // Increment seat number as needed
+                    item_id: item.id,
+                    item_name: item.name
+                })
+            }).then(() => refreshOrderDisplay())
+            .catch(error => console.error('Error adding item to order:', error));
+        }
+
+        // Handle entree selection and retrieve sides
         function selectEntree(entree) {
             document.getElementById('category-buttons').classList.add('hidden');
             document.getElementById('selected-entree').style.display = 'block';
             document.getElementById('entree-name').textContent = entree.name;
             document.getElementById('complete-selections').style.display = 'block';
 
-            addItemToOrder(seatNumber++, entree.name, entree.id);
-
-            const menuListElement = document.getElementById('menu-list');
-            menuListElement.innerHTML = '';
-
-            fetch(`/get_menu/side`)
-                .then(response => response.json())
-                .then(sideItems => displaySideOptions(sideItems))
-                .catch(error => console.error('Error fetching sides:', error));
+            // Send selected entree to the order on the back end
+            fetch('/order/add_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    table_num: tableNum,
+                    seat_number: seatNumber++,
+                    item_id: entree.id,
+                    item_name: entree.name
+                })
+            }).then(() => refreshOrderDisplay())
+              .then(() => fetchCategory('Side'))
+              .catch(error => console.error('Error adding entree to order:', error));
         }
 
-        // Display side options
+        // Display side options and add selected sides as mods
         function displaySideOptions(sides) {
             const sideOptionsContainer = document.getElementById('side-options');
             sideOptionsContainer.innerHTML = '';
@@ -262,67 +281,73 @@
                 const sideButton = document.createElement('div');
                 sideButton.classList.add('menu-card');
                 sideButton.innerHTML = `<h3>${side.name}</h3>`;
-                sideButton.addEventListener('click', () => addSideToEntree(side));
+                sideButton.addEventListener('click', () => addModToEntree(side));
                 sideOptionsContainer.appendChild(sideButton);
             });
         }
 
-        // Add selected side as a "mod" to the entree in the order
-        function addSideToEntree(side) {
-            const lastSeatNumber = Object.keys(currentOrder).pop();
-            if (lastSeatNumber) {
-                currentOrder[lastSeatNumber].mods = currentOrder[lastSeatNumber].mods || [];
-                currentOrder[lastSeatNumber].mods.push({'name': side.name, 'id': side.id});
-            }
-            displayOrder();
+        // Add side as mod to the last selected entree
+        function addModToEntree(side) {
+            fetch('/order/add_mod', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    table_num: tableNum,
+                    seat_number: seatNumber - 1,  // Last selected entree's seat number
+                    item_id: side.id,
+                    mod_name: side.name,
+                    mod_id: side.id
+                })
+            }).then(() => refreshOrderDisplay())
+              .catch(error => console.error('Error adding mod:', error));
         }
 
-        // Add item to order
-        function addItemToOrder(seatNum, itemName, itemId) {
-            currentOrder[seatNum] = { name: itemName, id: itemId, mods: {} };
-            displayOrder();
+        // Retrieve and display the current order from the server
+        function refreshOrderDisplay() {
+            fetch(`/order/get?table_num=${tableNum}`)
+                .then(response => response.json())
+                .then(data => {
+                    const orderDetails = document.getElementById('order-details');
+                    orderDetails.innerHTML = '';
+
+                    if (data.order) {
+                        // Loop through each seat in the order object
+                        Object.values(data.order).forEach(item => {
+                            const itemDiv = document.createElement('div');
+                            itemDiv.classList.add('order-item');
+                            itemDiv.innerHTML = `<h3>${item.item_name}</h3>`;
+
+                            if (item.mods && item.mods.length) {
+                                const modList = document.createElement('ul');
+                                modList.classList.add('mod-list');
+                                modList.innerHTML = item.mods.map(mod => `<li>${mod}</li>`).join('');
+                                itemDiv.appendChild(modList);
+                            }
+
+                            orderDetails.appendChild(itemDiv);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error fetching order:', error));
         }
 
-        // Display order items with mods
-        function displayOrder() {
-            const orderDetails = document.getElementById('order-details');
-            orderDetails.innerHTML = '';
-
-            Object.values(currentOrder).forEach(item => {
-                const itemDiv = document.createElement('div');
-                itemDiv.classList.add('order-item');
-                itemDiv.innerHTML = `<h3>${item.name}</h3>`;
-
-                if (item.mods && item.mods.length) {
-                    const modList = document.createElement('ul');
-                    modList.classList.add('mod-list');
-                    modList.innerHTML = item.mods.map(mod => `<li>${mod.name}</li>`).join('');
-                    itemDiv.appendChild(modList);
-                }
-
-                // Log the item ID to the console when the order-item is clicked
-                itemDiv.addEventListener('click', () => {
-                    console.log(`Selected ID: ${item.id}`);
-
-                    // Loop through each mod to print its ID
-                    item.mods.forEach(mod => {
-                        console.log(`Selected Mod ID: ${mod.id}`);
-                    });
-                });
-
-                orderDetails.appendChild(itemDiv);
-            });
-
-        }
-        
-        function completeMods() {
-            document.getElementById('category-buttons').classList.remove('hidden');
-            document.getElementById('selected-entree').style.display = 'none';
-            document.getElementById('complete-selections').style.display = 'none';
-            document.getElementById('side-options').innerHTML = '';
-
-            const selectedIds = Object.values(currentOrder).map(item => item.id);
-            console.log("Completed Order IDs:", selectedIds);
+        // Finalize order and clear the display
+        function finalizeOrder() {
+            fetch('/order/finalize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ table_num: tableNum })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('category-buttons').classList.remove('hidden');
+                document.getElementById('selected-entree').style.display = 'none';
+                document.getElementById('complete-selections').style.display = 'none';
+                document.getElementById('side-options').innerHTML = '';
+                document.getElementById('order-details').innerHTML = '';
+                console.log(data.message);
+            })
+            .catch(error => console.error('Error finalizing order:', error));
         }
 
         // Reset view to category selection
@@ -331,11 +356,6 @@
             document.getElementById('selected-entree').style.display = 'none';
             document.getElementById('complete-selections').style.display = 'none';
             document.getElementById('side-options').innerHTML = '';
-        }
-
-        function addItemToOrder(seatNum, itemName, itemId) {
-            currentOrder[seatNum] = { seatNum: seatNum, name: itemName, id: itemId, quantity: 1, mods: [] };
-            displayOrder();
         }
     </script>
 </body>
