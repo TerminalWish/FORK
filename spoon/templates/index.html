@@ -77,6 +77,12 @@
             transform: scale(1.02);
         }
 
+        .side-option {
+            font-style: italic;  /* Example: italicize the side */
+            padding-left: 10px;  /* Indent to visually distinguish it */
+            color: #555;         /* Gray color for contrast */
+        }
+
         /* Adjust mod list to remove extra space and align under entree */
         .mod-list {
             margin: 5px 0 0 15px;
@@ -194,7 +200,6 @@
             <button id="selected-entree" onclick="resetCategoryView()">Entree Selected: <span id="entree-name"></span></button>
 
             <ul id="menu-list"></ul>
-            <div id="side-options"></div>
             <button id="complete-selections" onclick="finalizeOrder()">Done</button>
         </div>
     </div>
@@ -247,6 +252,7 @@
                     item_name: item.name
                 })
             }).then(() => refreshOrderDisplay())
+            .then(() => resetCategoryView())
             .catch(error => console.error('Error adding item to order:', error));
         }
 
@@ -268,22 +274,46 @@
                     item_name: entree.name
                 })
             }).then(() => refreshOrderDisplay())
-              .then(() => fetchCategory('Side'))
+              .then(() => displaySideOptions())
               .catch(error => console.error('Error adding entree to order:', error));
         }
 
         // Display side options and add selected sides as mods
-        function displaySideOptions(sides) {
-            const sideOptionsContainer = document.getElementById('side-options');
-            sideOptionsContainer.innerHTML = '';
+        function displaySideOptions() {
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
 
-            sides.forEach(side => {
-                const sideButton = document.createElement('div');
-                sideButton.classList.add('menu-card');
-                sideButton.innerHTML = `<h3>${side.name}</h3>`;
-                sideButton.addEventListener('click', () => addModToEntree(side));
-                sideOptionsContainer.appendChild(sideButton);
-            });
+            fetch(`/get_menu/Side`)
+                .then(response => response.json())
+                .then(menuItems => {
+                    menuItems.forEach(item => {
+                        const card = document.createElement('div');
+                        card.classList.add('menu-card');
+                        card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
+
+                        card.addEventListener('click', () => addSideToEntree(item));
+
+                        menuListElement.appendChild(card);
+                    }); 
+                })
+                .catch(error => console.error('Error fetching menu category:', error));
+
+                       
+        }
+
+        function addSideToEntree(item) {
+            fetch('/order/add_side_to_entree', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    table_num: tableNum,
+                    seat_number: seatNumber -1,
+                    side_id: item.id,
+                    side_name: item.name
+                })
+            }).then(() => refreshOrderDisplay())
+              .then(() => resetCategoryView())
+              .catch(error => console.error('Error adding mod:', error));
         }
 
         // Add side as mod to the last selected entree
@@ -299,6 +329,7 @@
                     mod_id: side.id
                 })
             }).then(() => refreshOrderDisplay())
+              .then(() => resetCategoryView())
               .catch(error => console.error('Error adding mod:', error));
         }
 
@@ -316,6 +347,14 @@
                             const itemDiv = document.createElement('div');
                             itemDiv.classList.add('order-item');
                             itemDiv.innerHTML = `<h3>${item.item_name}</h3>`;
+
+                            // Display side option if it exists
+                            if (item.side_option_name) {
+                                const sideDiv = document.createElement('div');
+                                sideDiv.classList.add('side-option');
+                                sideDiv.innerHTML = `<p>Side: ${item.side_option_name}</p>`;
+                                itemDiv.appendChild(sideDiv);
+                            }
 
                             if (item.mods && item.mods.length) {
                                 const modList = document.createElement('ul');
@@ -343,8 +382,8 @@
                 document.getElementById('category-buttons').classList.remove('hidden');
                 document.getElementById('selected-entree').style.display = 'none';
                 document.getElementById('complete-selections').style.display = 'none';
-                document.getElementById('side-options').innerHTML = '';
                 document.getElementById('order-details').innerHTML = '';
+                document.getElementById('menu-list').innerHTML = '';
                 console.log(data.message);
             })
             .catch(error => console.error('Error finalizing order:', error));
@@ -355,7 +394,7 @@
             document.getElementById('category-buttons').classList.remove('hidden');
             document.getElementById('selected-entree').style.display = 'none';
             document.getElementById('complete-selections').style.display = 'none';
-            document.getElementById('side-options').innerHTML = '';
+            document.getElementById('menu-list').innerHTML = '';
         }
     </script>
 </body>

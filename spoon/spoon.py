@@ -31,6 +31,8 @@ class TempOrder(db.Model):
     seat_number = db.Column(db.Integer, nullable=False)
     item_id = db.Column(db.Integer, nullable=False)
     item_name = db.Column(db.String, nullable=False)
+    side_option_id = db.Column(db.Integer, nullable=True)
+    side_option_name = db.Column(db.String, nullable=True)
     mod_name = db.Column(db.String, nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
@@ -65,6 +67,24 @@ def add_item():
     db.session.commit()
     
     return jsonify({'message': 'Item added to order'})
+
+@app.route('/order/add_side_to_entree', methods=['POST'])
+def add_side_to_entree():
+    data = request.json
+    table_num = data['table_num']
+    seat_number = data['seat_number']
+    side_id = data['side_id']
+    side_name = data['side_name']
+
+    entree = TempOrder.query.filter_by(seat_number=seat_number, table_num=table_num).first()
+
+    if entree:
+        entree.side_option_id = side_id
+        entree.side_option_name = side_name
+        db.session.commit()
+        return jsonify({'message': 'Side added to entree successfully'})
+    
+    return jsonify({'message': 'Entree not found'}), 404
 
 @app.route('/order/add_mod', methods=['POST'])
 def add_mod_to_item():
@@ -127,7 +147,9 @@ def get_current_order():
             order_dict[order.seat_number] = {
                 'item_id': order.item_id,
                 'item_name': order.item_name,
-                'mods': []
+                'mods': [],
+                'side_option_id': order.side_option_id,
+                'side_option_name': order.side_option_name
             }
         if order.mod_name:
             order_dict[order.seat_number]['mods'].append(order.mod_name)
