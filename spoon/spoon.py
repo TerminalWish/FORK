@@ -1,4 +1,5 @@
 import os
+import json
 from datetime import datetime
 from urllib.parse import urljoin
 from flask import Flask, render_template, jsonify, request, session
@@ -33,7 +34,7 @@ class TempOrder(db.Model):
     item_name = db.Column(db.String, nullable=False)
     side_option_id = db.Column(db.Integer, nullable=True)
     side_option_name = db.Column(db.String, nullable=True)
-    mod_name = db.Column(db.String, nullable=True)
+    mods = db.Column(db.Text, default='[]')
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
     def to_dict(self):
@@ -86,6 +87,31 @@ def add_side_to_entree():
     
     return jsonify({'message': 'Entree not found'}), 404
 
+@app.route('/order/intensity_mod', methods=['POST'])
+def intensity_mod():
+    data = request.json
+    table_num = data['table_num']
+    seat_number = data['seat_number']
+    intensity = data['intensity']
+    ingredient = data['ingredient']
+
+    dish = TempOrder.query.filter_by(seat_number=seat_number, table_num=table_num).first()
+    if not dish:
+        return jsonify({'error': 'Order item not found'}), 404
+
+    current_mods = json.loads(dish.mods)
+    if not current_mods:
+        current_mods = []
+    current_mods.append({
+        'intensity': intensity,
+        'ingredient': ingredient
+    })
+
+    dish.mods = json.dumps(current_mods)
+    db.session.commit()
+
+    return jsonify({'message': 'Mod added to item'}), 200
+
 @app.route('/order/add_mod', methods=['POST'])
 def add_mod_to_item():
     data = request.json
@@ -105,7 +131,7 @@ def add_mod_to_item():
     db.session.add(new_mod)
     db.session.commit()
 
-    return jsonify({'message': 'Mod added to item'})
+    return jsonify({'message': 'Mod added to item'}), 200
 
 @app.route('/order/finalize', methods=['POST'])
 def finalize_order():
@@ -122,8 +148,13 @@ def finalize_order():
                 'item_name': order.item_name,
                 'mods': []
             }
-        if order.mod_name:
-            final_order[order.seat_number]['mods'].append(order.mod_name)
+        if order.mods:
+            # Parse the JSON string into a list of mod dictionaries
+            mods_list = json.loads(order.mods)
+
+            # Append each mod to the order dictionary under 'mods'
+            for mod in mods_list:
+                final_order[order.seat_number]['mods'].append(mod)
     
     # Delete all entries for the table number after finalizing
     TempOrder.query.filter_by(table_num=table_num).delete()
@@ -151,10 +182,36 @@ def get_current_order():
                 'side_option_id': order.side_option_id,
                 'side_option_name': order.side_option_name
             }
-        if order.mod_name:
-            order_dict[order.seat_number]['mods'].append(order.mod_name)
+        if order.mods:
+            # Parse the JSON string into a list of mod dictionaries
+            mods_list = json.loads(order.mods)
+
+            # Append each mod to the order dictionary under 'mods'
+            for mod in mods_list:
+                order_dict[order.seat_number]['mods'].append(mod)
 
     return jsonify({'order': order_dict})
+
+@app.route('/get_ingredients/<dish_id>', methods=['GET'])
+def get_ingredients_by_dish(dish_id):
+    if not dish_id:
+        return jsonify({"error": "Dish ID is required", "error_code": "MISSING_DISH_ID"}), 400
+
+    try:
+        # Request ingredients from Fork
+        ingredients_url = urljoin(SERVER_URL, '/dish/ingredients')
+        response = requests.get(ingredients_url, params={"dish_id": dish_id}, timeout=5)
+        response.raise_for_status()
+        ingredients_data = response.json()
+        
+        # Check if response contains error
+        if not ingredients_data.get("success", False):
+            return jsonify(ingredients_data), response.status_code
+        
+        return jsonify(ingredients_data), 200
+
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": "Failed to retrieve ingredients", "error_code": e}), 500
 
 @app.route('/get_menu/<category>', methods=['GET'])
 def get_menu_by_category(category):

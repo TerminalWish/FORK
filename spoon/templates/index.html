@@ -23,7 +23,6 @@
             width: 90vw;
             height: 90vh;
             gap: 2%;
-            position: relative;
         }
 
         /* Apply grid layout to #menu-list and #side-options */
@@ -43,6 +42,7 @@
             background-color: #f5f5f5;
             overflow-y: auto;
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+            position: relative;
         }
 
         /* Title styling */
@@ -109,9 +109,57 @@
         }
 
         .hidden {
+            display: none;
             transform: translateY(-100%);
             opacity: 0;
             pointer-events: none;
+        }
+
+        /* Transition for sliding up */
+        .slide-up {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.5s, opacity 0.5s;
+        }
+
+        /* Disabled button style */
+        .disabled {
+            background-color: #d3d3d3;
+            color: #888;
+            pointer-events: none;
+            cursor: not-allowed;
+        }
+
+        .mod-intensity-button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 1em;
+            background-color: #8b4513;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .mod-intensity-button:hover:not(.disabled) {
+            background-color: #a0522d;
+        }
+
+        /* Styling for Mod Option Buttons */
+        .mod-option-button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 1em;
+            background-color: #8b4513;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .mod-option-button:hover:not(.disabled) {
+            background-color: #a0522d;
         }
 
         .category-button {
@@ -140,18 +188,6 @@
             box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
         }
 
-        #selected-entree {
-            display: none;
-            margin: 10px 0;
-            padding: 10px;
-            font-size: 1.2em;
-            color: #fff;
-            background-color: #b22222;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
         #side-options {
             display: flex;
             flex-wrap: wrap;
@@ -160,9 +196,28 @@
             justify-content: center;
         }
 
+        #finish-mods-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #8b4513;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: block;
+        }
+
+        #finish-mods-button:hover {
+            background-color: #a0522d;
+        }
+
         /* Position Complete Selections Button */
         #complete-selections {
-            display: none; /* Hidden by default */
+            display: block; 
             position: absolute;
             bottom: 20px;
             right: 20px;
@@ -179,16 +234,45 @@
         #complete-selections:hover {
             background-color: #a0522d;
         }
+
+        #current-item-name, #mod-list {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        #go-back-button {
+            padding: 8px 15px;
+            background-color: #8b4513;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: block;
+        }
+
+        #go-back-button:hover {
+            background-color: #a0522d;
+        }
+
+        .selected {
+            border: 2px solid #6e3115;
+            background-color: #a0522d;
+        }
     </style>
 </head>
 <body>
     <div id="main-container">
+
         <div id="order-box">
             <div id="order-title">Current Order</div>
             <div id="order-details"></div>
+            <button id="complete-selections" onclick="finalizeOrder()">Done</button>
         </div>
 
         <div id="menu-container">
+
+            <button id="go-back-button" class="hidden" onclick="resetCategoryView()">Go Back</button>
+
             <div id="category-buttons">
                 <button class="category-button" onclick="fetchCategory('Drink')">Drink</button>
                 <button class="category-button" onclick="fetchCategory('Appetizer')">Appetizer</button>
@@ -197,16 +281,50 @@
                 <button class="category-button" onclick="fetchCategory('Dessert')">Dessert</button>
             </div>
 
-            <button id="selected-entree" onclick="resetCategoryView()">Entree Selected: <span id="entree-name"></span></button>
+            <div id="mod-option-buttons" class="hidden">
+                <button id="side-button" class="mod-option-button" onclick="handleModOption('Side')">Side</button>
+                <button id="mod-button" class="mod-option-button" onclick="handleModOption('Mod')">Mod</button>
+                <button id="addon-button" class="mod-option-button" onclick="handleModOption('Addon')">Addon</button>
+                <button id="allergy-button" class="mod-option-button" onclick="handleModOption('Allergy')">Allergy</button>
+            </div>
 
+            <div id="mod-intensity-buttons" class="hidden">
+                <button id="none-button" class="mod-intensity-button">None</button>
+                <button id="light-button" class="mod-intensity-button">Light</button>
+                <button id="extra-button" class="mod-intensity-button">Extra</button>
+            </div>
+            
             <ul id="menu-list"></ul>
-            <button id="complete-selections" onclick="finalizeOrder()">Done</button>
+
+            <button id="finish-mods-button" class="hidden">Add to Order</button>
         </div>
     </div>
 
     <script>
         let seatNumber = 1;
         let tableNum = "1"; // Replace this with the actual table number for each device
+
+        // Track the current selections
+        let selectedIngredient = null;
+        let selectedIntensity = null;
+
+        // Immediately invoked function to set up mod-intensity button listeners once
+        (function initializeModIntensityListeners() {
+            document.querySelectorAll('.mod-intensity-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    // Toggle selection logic
+                    if (selectedIntensity && selectedIntensity !== button) {
+                        selectedIntensity.classList.remove('selected');
+                    }
+
+                    button.classList.toggle('selected');
+                    selectedIntensity = button.classList.contains('selected') ? button : null;
+
+                    // Call the logSelection function if both are selected
+                    logSelection();
+                });
+            });
+        })();
 
         // Fetch category and display items
         function fetchCategory(category) {
@@ -215,12 +333,12 @@
 
             fetch(`/get_menu/${category}`)
                 .then(response => response.json())
-                .then(menuItems => displayMenuItems(menuItems, category))
+                .then(menuItems => displayMenuItems(menuItems))
                 .catch(error => console.error('Error fetching menu category:', error));
         }
 
         // Display menu items in menu container
-        function displayMenuItems(menuItems, category) {
+        function displayMenuItems(menuItems) {
             const menuListElement = document.getElementById('menu-list');
             menuListElement.innerHTML = '';
 
@@ -229,15 +347,53 @@
                 card.classList.add('menu-card');
                 card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
 
-                // Check if the category is 'Entree' to call selectEntree, otherwise call addItemToOrder
-                if (category === 'Entree') {
-                    card.addEventListener('click', () => selectEntree(item));
-                } else {
-                    card.addEventListener('click', () => addItemToOrder(item));
-                }
+                card.addEventListener('click', () => {
+                    displayModOptions(item, seatNumber)
+                });
 
                 menuListElement.appendChild(card);
             });
+        }
+
+        function displayModOptions(item, seatNumber) {
+            // Hide category buttons
+            document.getElementById('category-buttons').classList.add('slide-up');
+
+            // Hide category menu
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
+
+            // Show go back button
+            document.getElementById('go-back-button').classList.remove('hidden');
+            
+            // Show mod option buttons
+            const modOptionButtons = document.getElementById('mod-option-buttons');
+            modOptionButtons.classList.remove('hidden');
+            const finishModsButton = document.getElementById('finish-mods-button');
+            finishModsButton.classList.remove('hidden');
+
+            // Set custom data attributes
+            finishModsButton.dataset.itemID = item.id;
+            finishModsButton.dataset.seatNumber = seatNumber;
+            finishModsButton.dataset.itemName = item.name;
+
+            // Create TempOrder
+            addItemToOrder(item)
+
+            // Attached click event listener to use the data attributes
+            finishModsButton.replaceWith(finishModsButton.cloneNode(true));
+            document.getElementById('finish-mods-button').addEventListener('click', resetCategoryView);
+            
+            // Check if the selected item is an Entree
+            if (item.category !== 'Entree') {
+                // Disable the Side button if not an Entree
+                document.getElementById('side-button').classList.add('disabled');
+            } else {
+                // Ensure Side button is enabled for Entrees
+                document.getElementById('side-button').classList.remove('disabled');
+            }
+
+
         }
 
         // Define addItemToOrder function for non-entree items
@@ -252,30 +408,134 @@
                     item_name: item.name
                 })
             }).then(() => refreshOrderDisplay())
-            .then(() => resetCategoryView())
             .catch(error => console.error('Error adding item to order:', error));
         }
 
-        // Handle entree selection and retrieve sides
-        function selectEntree(entree) {
-            document.getElementById('category-buttons').classList.add('hidden');
-            document.getElementById('selected-entree').style.display = 'block';
-            document.getElementById('entree-name').textContent = entree.name;
-            document.getElementById('complete-selections').style.display = 'block';
+        function handleModOption(modType) {
 
-            // Send selected entree to the order on the back end
-            fetch('/order/add_item', {
+            switch (modType) {
+                case 'Side':
+                    fetchModCategory('Side');
+                    break;
+                case 'Mod':
+                    displayModIntensity();
+                    break;
+                default:
+                    console.warn('Unknown mod type: ${modType}');
+            }
+        }
+
+        function displayModIntensity() {
+
+            const modIntensityButtons = document.getElementById('mod-intensity-buttons');
+            modIntensityButtons.classList.remove('hidden');
+
+            // Get custom data attributes
+            const finishModsButton = document.getElementById('finish-mods-button');
+            const itemID = finishModsButton.dataset.itemID;
+
+            fetch(`/get_ingredients/${itemID}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        console.error(`Error: ${data.error} (Code: ${data.error_code})`);
+                        return;
+                    }
+                    
+                    const menuListElement = document.getElementById('menu-list');
+                    menuListElement.innerHTML = '';
+                    
+                    data.ingredients.forEach(ingredient => {
+                        const card = document.createElement('div');
+                        card.classList.add('menu-card');
+                        card.innerHTML = `<h3>${ingredient.name}<h3>`;
+                        
+                        card.addEventListener('click', () => {
+                            // Deselect the previous ingredient card if one is selected
+                            if (selectedIngredient && selectedIngredient !== card) {
+                                selectedIngredient.classList.remove('selected');
+                            }
+
+                            // Toggle the current ingredient card selection
+                            card.classList.toggle('selected');
+                            selectedIngredient = card.classList.contains('selected') ? card : null;
+
+                            // Check if both ingredient and intensity are selected and log them
+                            logSelection();
+                        });
+                        
+                        menuListElement.appendChild(card);
+                    });
+                })
+                .catch(error => console.error('Unexpected error displaying ingredients:', error));
+        }
+
+        function fetchModCategory(modType) {
+            if (modType == 'Side') {
+                const menuListElement = document.getElementById('menu-list');
+                menuListElement.innerHTML = '';
+
+                fetch(`/get_menu/${modType}`)
+                    .then(response => response.json())
+                    .then(menuItems => displayEntreeSides(menuItems))
+                    .catch(error => console.error('Error fetching menu category:', error));
+            }
+        }
+
+        function displayEntreeSides(menuItems) {
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
+
+            menuItems.forEach(item => {
+                const card = document.createElement('div');
+                card.classList.add('menu-card');
+                card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
+
+                card.addEventListener('click', () => {
+                    addSideToEntree(item, seatNumber)
+                });
+
+                menuListElement.appendChild(card);
+            });
+        }
+
+        function addSideToEntree(item) {
+
+            // Get custom data attributes
+            const finishModsButton = document.getElementById('finish-mods-button');
+            const itemID = finishModsButton.dataset.itemID;
+            const seatNumber = finishModsButton.dataset.seatNumber;
+            const itemName = finishModsButton.dataset.itemName;
+
+            fetch('/order/add_side_to_entree', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     table_num: tableNum,
-                    seat_number: seatNumber++,
-                    item_id: entree.id,
-                    item_name: entree.name
+                    seat_number: seatNumber,
+                    side_id: item.id,
+                    side_name: item.name
                 })
             }).then(() => refreshOrderDisplay())
-              .then(() => displaySideOptions())
-              .catch(error => console.error('Error adding entree to order:', error));
+              .catch(error => console.error('Error adding mod:', error));
+        }
+
+        // Make changes to TempOrder
+        function finishMods() {
+            
+            // Get custom data attributes
+            const finishModsButton = document.getElementById('finish-mods-button');
+            const itemID = finishModsButton.dataset.itemID;
+            const seatNumber = finishModsButton.dataset.seatNumber;
+            const itemName = finishModsButton.dataset.itemName;
+
+            fetch('/order/mod_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+
+                })
+            });
         }
 
         // Display side options and add selected sides as mods
@@ -298,23 +558,9 @@
                 })
                 .catch(error => console.error('Error fetching menu category:', error));
 
-                       
         }
 
-        function addSideToEntree(item) {
-            fetch('/order/add_side_to_entree', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    table_num: tableNum,
-                    seat_number: seatNumber -1,
-                    side_id: item.id,
-                    side_name: item.name
-                })
-            }).then(() => refreshOrderDisplay())
-              .then(() => resetCategoryView())
-              .catch(error => console.error('Error adding mod:', error));
-        }
+        
 
         // Add side as mod to the last selected entree
         function addModToEntree(side) {
@@ -348,6 +594,13 @@
                             itemDiv.classList.add('order-item');
                             itemDiv.innerHTML = `<h3>${item.item_name}</h3>`;
 
+                            itemDiv.addEventListener('click', () => {
+                                console.log(`Menu Item ID: ${item.item_id}`);
+                                if (item.side_option_id) {
+                                    console.log(`Side Item ID: ${item.side_option_id}`);
+                                }
+                            });
+
                             // Display side option if it exists
                             if (item.side_option_name) {
                                 const sideDiv = document.createElement('div');
@@ -356,10 +609,18 @@
                                 itemDiv.appendChild(sideDiv);
                             }
 
+                            // Display mods if they exist
                             if (item.mods && item.mods.length) {
                                 const modList = document.createElement('ul');
                                 modList.classList.add('mod-list');
-                                modList.innerHTML = item.mods.map(mod => `<li>${mod}</li>`).join('');
+
+                                // Loop through each mod and display its details
+                                item.mods.forEach(mod => {
+                                    const modItem = document.createElement('li');
+                                    modItem.textContent = `${mod.intensity} ${mod.ingredient}`;
+                                    modList.appendChild(modItem);
+                                });
+
                                 itemDiv.appendChild(modList);
                             }
 
@@ -368,6 +629,50 @@
                     }
                 })
                 .catch(error => console.error('Error fetching order:', error));
+        }
+
+        // Function to log the selected ingredient and intensity if both are selected
+        function logSelection() {
+            if (selectedIngredient && selectedIntensity) {
+                const ingredientName = selectedIngredient.querySelector('h3').textContent;
+                const intensityLevel = selectedIntensity.textContent;
+
+                // Get custom data attributes
+                const finishModsButton = document.getElementById('finish-mods-button');
+                const itemID = finishModsButton.dataset.itemID;
+                const seatNumber = finishModsButton.dataset.seatNumber;
+                const itemName = finishModsButton.dataset.itemName;
+
+                fetch('/order/intensity_mod', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        table_num: tableNum,
+                        seat_number: seatNumber,
+                        intensity: intensityLevel,
+                        ingredient: ingredientName
+                    })
+                })
+                .then(response => {
+                    if(!response.ok) throw new Erorr('Failed to add mod to order');
+                    return response.json();
+                })
+                .then(data => {
+                    // Untoggle both selections
+                    selectedIngredient.classList.remove('selected');
+                    selectedIntensity.classList.remove('selected');
+
+                    // Reset the selected variables
+                    selectedIngredient = null;
+                    selectedIntensity = null
+
+                    refreshOrderDisplay()
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to add mod to order. Please try again.');
+                });
+            }
         }
 
         // Finalize order and clear the display
@@ -380,8 +685,6 @@
             .then(response => response.json())
             .then(data => {
                 document.getElementById('category-buttons').classList.remove('hidden');
-                document.getElementById('selected-entree').style.display = 'none';
-                document.getElementById('complete-selections').style.display = 'none';
                 document.getElementById('order-details').innerHTML = '';
                 document.getElementById('menu-list').innerHTML = '';
                 console.log(data.message);
@@ -391,9 +694,12 @@
 
         // Reset view to category selection
         function resetCategoryView() {
+            document.getElementById('category-buttons').classList.remove('slide-up');
             document.getElementById('category-buttons').classList.remove('hidden');
-            document.getElementById('selected-entree').style.display = 'none';
-            document.getElementById('complete-selections').style.display = 'none';
+            document.getElementById('mod-option-buttons').classList.add('hidden');
+            document.getElementById('finish-mods-button').classList.add('hidden');
+            document.getElementById('go-back-button').classList.add('hidden');
+            document.getElementById('mod-intensity-buttons').classList.add('hidden');
             document.getElementById('menu-list').innerHTML = '';
         }
     </script>
