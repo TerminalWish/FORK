@@ -1,7 +1,7 @@
 import os
-from flask import jsonify, Flask
+from flask import Flask, jsonify, request
 from sqlalchemy import create_engine
-from sqlalchemy.orm import relationship, sessionmaker, scoped_session
+from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 
@@ -65,6 +65,37 @@ def get_menu():
     session.close()
 
     return jsonify(menu_list)
+
+@app.route('/dish/ingredients', methods=['GET'])
+def get_ingredients():
+    dish_id = request.args.get('dish_id')
+    if not dish_id:
+        return jsonify({"error": "Dish ID is required", "error_code": "MISSING_DISH_ID"}), 400
+
+    try:
+        # Query for ingredients associated with the specified menu item
+        ingredients = (
+            db.session.query(Ingredient.id, Ingredient.name, MenuIngredient.quantity, MenuIngredient.measurement)
+            .join(MenuIngredient, Ingredient.id == MenuIngredient.ingredient_id)
+            .filter(MenuIngredient.menu_id == dish_id)
+            .all()
+        )
+
+        # Format response data
+        ingredients_data = [
+            {
+                "id": ing.id,
+                "name": ing.name,
+                "quantity": ing.quantity,
+                "measurement": ing.measurement
+            }
+            for ing in ingredients
+        ]
+
+        return jsonify({"success": True, "ingredients": ingredients_data}), 200
+    
+    except Exception as e:
+        return jsonify({"error": "An unexpected error occurred", "error_code": e}), 500
 
 # Help function to aid with jsonifying table data
 def as_dict(self):
