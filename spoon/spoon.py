@@ -32,6 +32,7 @@ class TempOrder(db.Model):
     seat_number = db.Column(db.Integer, nullable=False)
     item_id = db.Column(db.Integer, nullable=False)
     item_name = db.Column(db.String, nullable=False)
+    item_category = db.Column(db.String, nullable=False)
     side_option_id = db.Column(db.Integer, nullable=True)
     side_option_name = db.Column(db.String, nullable=True)
     mods = db.Column(db.Text, default='[]')
@@ -56,13 +57,15 @@ def add_item():
     seat_number = data['seat_number']
     item_id = data['item_id']
     item_name = data['item_name']
+    item_category = data['item_category']
     
     # Create and add a new TempOrder instance
     new_order = TempOrder(
         table_num=table_num,
         seat_number=seat_number,
         item_id=item_id,
-        item_name=item_name
+        item_name=item_name,
+        item_category=item_category
     )
     db.session.add(new_order)
     db.session.commit()
@@ -180,7 +183,8 @@ def get_current_order():
                 'item_name': order.item_name,
                 'mods': [],
                 'side_option_id': order.side_option_id,
-                'side_option_name': order.side_option_name
+                'side_option_name': order.side_option_name,
+                'seat_number': order.seat_number
             }
         if order.mods:
             # Parse the JSON string into a list of mod dictionaries

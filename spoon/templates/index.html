@@ -385,14 +385,55 @@
             document.getElementById('finish-mods-button').addEventListener('click', resetCategoryView);
             
             // Check if the selected item is an Entree
-            if (item.category !== 'Entree') {
+            if (item.category === 'Entree') {
+                // Ensure Side button is enabled for Entrees and preselect it
+                document.getElementById('side-button').classList.remove('disabled');
+                handleModOption('Side');  // Automatically selects "Side" for Entrees
+            } else {
                 // Disable the Side button if not an Entree
                 document.getElementById('side-button').classList.add('disabled');
-            } else {
-                // Ensure Side button is enabled for Entrees
-                document.getElementById('side-button').classList.remove('disabled');
+                handleModOption('Mod');  // Automatically selects "Mod" for non-Entree items
             }
 
+        }
+
+        function editModOptions(item, seatNumber) {
+            // Hide category buttons
+            document.getElementById('category-buttons').classList.add('slide-up');
+
+            // Hide category menu
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
+
+            // Show go back button
+            document.getElementById('go-back-button').classList.remove('hidden');
+            
+            // Show mod option buttons
+            const modOptionButtons = document.getElementById('mod-option-buttons');
+            modOptionButtons.classList.remove('hidden');
+            const finishModsButton = document.getElementById('finish-mods-button');
+            finishModsButton.classList.remove('hidden');
+
+            // Set custom data attributes
+            finishModsButton.dataset.itemID = item.item_id;
+            finishModsButton.dataset.seatNumber = item.seat_number;
+            finishModsButton.dataset.itemName = item.item_name;
+            finishModsButton.dataset.sideID = item.side_option_id;
+
+            // Attached click event listener to use the data attributes
+            finishModsButton.replaceWith(finishModsButton.cloneNode(true));
+            document.getElementById('finish-mods-button').addEventListener('click', resetCategoryView);
+            
+            // Check if the selected item is an Entree
+            if (item.item_category === 'Entree') {
+                // Ensure Side button is enabled for Entrees and preselect it
+                document.getElementById('side-button').classList.remove('disabled');
+                handleModOption('Side');  // Automatically selects "Side" for Entrees
+            } else {
+                // Disable the Side button if not an Entree
+                document.getElementById('side-button').classList.add('disabled');
+                handleModOption('Mod');  // Automatically selects "Mod" for non-Entree items
+            }
 
         }
 
@@ -405,13 +446,17 @@
                     table_num: tableNum,
                     seat_number: seatNumber++,  // Increment seat number as needed
                     item_id: item.id,
-                    item_name: item.name
+                    item_name: item.name,
+                    item_category: item.category
                 })
             }).then(() => refreshOrderDisplay())
             .catch(error => console.error('Error adding item to order:', error));
         }
 
         function handleModOption(modType) {
+            // Hide category menu
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
 
             switch (modType) {
                 case 'Side':
@@ -486,13 +531,21 @@
             const menuListElement = document.getElementById('menu-list');
             menuListElement.innerHTML = '';
 
+            const finishModsButton = document.getElementById('finish-mods-button');
+            const attachedSideID = finishModsButton.dataset.sideID || undefined;
+
             menuItems.forEach(item => {
                 const card = document.createElement('div');
                 card.classList.add('menu-card');
                 card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
 
+                // Highlight the card if it matches the attached side ID
+                if (item.id == attachedSideID) {
+                    card.classList.add('selected');  // Apply highlight style
+                }
+
                 card.addEventListener('click', () => {
-                    addSideToEntree(item, seatNumber)
+                    addSideToEntree(item, seatNumber);
                 });
 
                 menuListElement.appendChild(card);
@@ -517,6 +570,10 @@
                     side_name: item.name
                 })
             }).then(() => refreshOrderDisplay())
+              .then(() => fetchModCategory('Side'))
+              .then(() => {
+                finishModsButton.dataset.sideID = item.id;
+              })
               .catch(error => console.error('Error adding mod:', error));
         }
 
@@ -598,6 +655,25 @@
                                 console.log(`Menu Item ID: ${item.item_id}`);
                                 if (item.side_option_id) {
                                     console.log(`Side Item ID: ${item.side_option_id}`);
+                                }
+
+                                // Pull item into the right panel for editing
+                                editModOptions(item, item.seatNumber);
+
+                                // If there is an existing side, set it as the selected side option
+                                if (item.side_option_id) {
+                                    // Use handleModOption or a similar method to preselect the side option
+                                    handleModOption('Side');
+                                    // Additional logic to set the specific side if needed
+                                }
+
+                                // If there are existing mods, populate them in the mod options panel
+                                if (item.mods && item.mods.length) {
+                                    item.mods.forEach(mod => {
+                                        // Implement logic to set each mod intensity and ingredient
+                                        // For example, you might call a function to highlight selected mods
+                                        // based on `mod.intensity` and `mod.ingredient`
+                                    });
                                 }
                             });
 
