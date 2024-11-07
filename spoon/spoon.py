@@ -36,6 +36,7 @@ class TempOrder(db.Model):
     side_option_id = db.Column(db.Integer, nullable=True)
     side_option_name = db.Column(db.String, nullable=True)
     mods = db.Column(db.Text, default='[]')
+    side_mods = db.Column(db.Text, default='[]')
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
 
     def to_dict(self):
@@ -58,7 +59,7 @@ def add_item():
     item_id = data['item_id']
     item_name = data['item_name']
     item_category = data['item_category']
-    
+
     # Create and add a new TempOrder instance
     new_order = TempOrder(
         table_num=table_num,
@@ -85,6 +86,7 @@ def add_side_to_entree():
     if entree:
         entree.side_option_id = side_id
         entree.side_option_name = side_name
+        entree.side_mods = json.dumps([])
         db.session.commit()
         return jsonify({'message': 'Side added to entree successfully'})
     
@@ -113,7 +115,74 @@ def intensity_mod():
     dish.mods = json.dumps(current_mods)
     db.session.commit()
 
-    return jsonify({'message': 'Mod added to item'}), 200
+    return jsonify({'message': 'Mod added to item', 'mods': current_mods}), 200
+
+@app.route('/order/side_intensity_mod', methods=['POST'])
+def side_intensity_mod():
+    data = request.json
+    table_num = data['table_num']
+    seat_number = data['seat_number']
+    intensity = data['intensity']
+    ingredient = data['ingredient']
+
+    dish = TempOrder.query.filter_by(seat_number=seat_number, table_num=table_num).first()
+    if not dish:
+        return jsonify({'error': 'Order item not found'}), 404
+    
+    current_side_mods = json.loads(dish.side_mods) if dish.side_mods else []
+    current_side_mods.append({
+        'intensity': intensity,
+        'ingredient': ingredient
+    })
+
+    dish.side_mods = json.dumps(current_side_mods)
+    db.session.commit()
+
+    return jsonify({'message': 'Side mod added to item', 'mods': current_side_mods}), 200
+
+@app.route('/order/remove_mod', methods=['POST'])
+def remove_mod():
+    data = request.json
+    seat_number = data.get('seat_number')
+    item_id = data.get('item_id')
+    ingredient = data.get('ingredient')
+
+    # Retrieve the order item based on seat_number and item_id
+    dish = TempOrder.query.filter_by(seat_number=seat_number, item_id=item_id).first()
+    if not dish:
+        return jsonify({'error': 'Order item not found'}), 404
+    
+    # Parse and update the mods list
+    current_mods = json.loads(dish.mods) if dish.mods else []
+    updated_mods = [mod for mod in current_mods if mod['ingredient'] != ingredient]
+
+    # Save the updated mods back to the database
+    dish.mods = json.dumps(updated_mods)
+    db.session.commit()
+
+    return jsonify({'success': True, 'mods': updated_mods}), 200
+
+@app.route('/order/side_remove_mod', methods=['POST'])
+def side_remove_mod():
+    data = request.json
+    seat_number = data.get('seat_number')
+    entree_item_id = data.get('item_id') # Remember this is stored under the entree id as a side
+    ingredient = data.get('ingredient')
+
+    # Retrieve the order item based on seat_number and item_id
+    dish = TempOrder.query.filter_by(seat_number=seat_number, item_id=entree_item_id).first()
+    if not dish:
+        return jsonify({'error': 'Order item not found'}), 404
+    
+    # Parse and update the mods list
+    current_mods = json.loads(dish.side_mods) if dish.side_mods else []
+    updated_mods = [mod for mod in current_mods if mod['ingredient'] != ingredient]
+
+    dish.side_mods = json.dumps(updated_mods)
+    db.session.commit()
+
+    return jsonify({'success': True, 'mods': updated_mods}), 200
+
 
 @app.route('/order/add_mod', methods=['POST'])
 def add_mod_to_item():
@@ -184,7 +253,8 @@ def get_current_order():
                 'mods': [],
                 'side_option_id': order.side_option_id,
                 'side_option_name': order.side_option_name,
-                'seat_number': order.seat_number
+                'seat_number': order.seat_number,
+                'item_category': order.item_category
             }
         if order.mods:
             # Parse the JSON string into a list of mod dictionaries
@@ -237,6 +307,39 @@ def get_menu_by_category(category):
         return jsonify({'erorr': 'Request timed out'}), 504
     except requests.RequestException as e:
         return jsonify({'error': f'Request failed: {e}'}), 500
+    
+@app.route('/order/get_mods', methods=['POST'])
+def get_mods():
+    data = request.json
+    seat_number = data.get('seat_number')
+    item_id = data.get('item_id')
+
+    # Retrieve the order item based on seat_number and item_id
+    dish = TempOrder.query.filter_by(seat_number=seat_number, item_id=item_id).first()
+    if not dish:
+        return jsonify({'error': 'Order item not found'}), 404
+
+    # Parse the mods field, assuming it's stored as JSON in the database
+    current_mods = json.loads(dish.mods) if dish.mods else []
+
+    # Return the current mods
+    return jsonify({'mods': current_mods}), 200
+
+@app.route('/order/get_side_mods', methods=['POST'])
+def get_side_mods():
+    data = request.json
+    seat_number = data.get('seat_number')
+    entree_item_id = data.get('item_id')  # The main entree's ID to locate the side's mods
+
+    # Find the entree with the given seat_number and entree_item_id
+    dish = TempOrder.query.filter_by(seat_number=seat_number, item_id=entree_item_id).first()
+    if not dish:
+        return jsonify({'error': 'Order item not found'}), 404
+
+    # Parse side_mods (stored as JSON) if available, otherwise return an empty list
+    side_mods = json.loads(dish.side_mods) if dish.side_mods else []
+
+    return jsonify({'mods': side_mods}), 200 
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
