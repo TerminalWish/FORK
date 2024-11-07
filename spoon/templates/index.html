@@ -258,6 +258,11 @@
             border: 2px solid #6e3115;
             background-color: #a0522d;
         }
+
+        .modded {
+            outline: 2px solid red;
+        }
+
     </style>
 </head>
 <body>
@@ -288,6 +293,11 @@
                 <button id="allergy-button" class="mod-option-button" onclick="handleModOption('Allergy')">Allergy</button>
             </div>
 
+            <div id="mod-target-buttons" class="hidden">
+                <button id="entree-mod-button" class="mod-target selected">Entree</button>
+                <button id="side-mod-button" class="mod-target">Side</button>
+            </div>
+
             <div id="mod-intensity-buttons" class="hidden">
                 <button id="none-button" class="mod-intensity-button">None</button>
                 <button id="light-button" class="mod-intensity-button">Light</button>
@@ -308,6 +318,8 @@
         let selectedIngredient = null;
         let selectedIntensity = null;
 
+        let isModifyingOrderDirectly = true; // We can make this false if we're modifying the side of an entree
+
         // Immediately invoked function to set up mod-intensity button listeners once
         (function initializeModIntensityListeners() {
             document.querySelectorAll('.mod-intensity-button').forEach(button => {
@@ -323,6 +335,26 @@
                     // Call the logSelection function if both are selected
                     logSelection();
                 });
+            });
+        })();
+
+        // Immediately-invoked function to set up the mod target listeners
+        (function initializeModTargetListeners() {
+            const entreeModButton = document.getElementById('entree-mod-button');
+            const sideModButton = document.getElementById('side-mod-button');
+
+            entreeModButton.addEventListener('click', () => {
+                isModifyingOrderDirectly = true;
+                entreeModButton.classList.add('selected');
+                sideModButton.classList.remove('selected');
+                loadIngredients();  // Reload ingredients for the entree
+            });
+
+            sideModButton.addEventListener('click', () => {
+                isModifyingOrderDirectly = false;
+                sideModButton.classList.add('selected');
+                entreeModButton.classList.remove('selected');
+                loadIngredients();  // Reload ingredients for the side
             });
         })();
 
@@ -385,14 +417,55 @@
             document.getElementById('finish-mods-button').addEventListener('click', resetCategoryView);
             
             // Check if the selected item is an Entree
-            if (item.category !== 'Entree') {
+            if (item.category === 'Entree') {
+                // Ensure Side button is enabled for Entrees and preselect it
+                document.getElementById('side-button').classList.remove('disabled');
+                handleModOption('Side');  // Automatically selects "Side" for Entrees
+            } else {
                 // Disable the Side button if not an Entree
                 document.getElementById('side-button').classList.add('disabled');
-            } else {
-                // Ensure Side button is enabled for Entrees
-                document.getElementById('side-button').classList.remove('disabled');
+                handleModOption('Mod');  // Automatically selects "Mod" for non-Entree items
             }
 
+        }
+
+        function editModOptions(item, seatNumber) {
+            // Hide category buttons
+            document.getElementById('category-buttons').classList.add('slide-up');
+
+            // Hide category menu
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
+
+            // Show go back button
+            document.getElementById('go-back-button').classList.remove('hidden');
+            
+            // Show mod option buttons
+            const modOptionButtons = document.getElementById('mod-option-buttons');
+            modOptionButtons.classList.remove('hidden');
+            const finishModsButton = document.getElementById('finish-mods-button');
+            finishModsButton.classList.remove('hidden');
+
+            // Set custom data attributes
+            finishModsButton.dataset.itemID = item.item_id;
+            finishModsButton.dataset.seatNumber = item.seat_number;
+            finishModsButton.dataset.itemName = item.item_name;
+            finishModsButton.dataset.sideID = item.side_option_id;
+
+            // Attached click event listener to use the data attributes
+            finishModsButton.replaceWith(finishModsButton.cloneNode(true));
+            document.getElementById('finish-mods-button').addEventListener('click', resetCategoryView);
+            
+            // Check if the selected item is an Entree
+            if (item.item_category === 'Entree') {
+                // Ensure Side button is enabled for Entrees and preselect it
+                document.getElementById('side-button').classList.remove('disabled');
+                handleModOption('Side');  // Automatically selects "Side" for Entrees
+            } else {
+                // Disable the Side button if not an Entree
+                document.getElementById('side-button').classList.add('disabled');
+                handleModOption('Mod');  // Automatically selects "Mod" for non-Entree items
+            }
 
         }
 
@@ -405,13 +478,17 @@
                     table_num: tableNum,
                     seat_number: seatNumber++,  // Increment seat number as needed
                     item_id: item.id,
-                    item_name: item.name
+                    item_name: item.name,
+                    item_category: item.category
                 })
             }).then(() => refreshOrderDisplay())
             .catch(error => console.error('Error adding item to order:', error));
         }
 
         function handleModOption(modType) {
+            // Hide category menu
+            const menuListElement = document.getElementById('menu-list');
+            menuListElement.innerHTML = '';
 
             switch (modType) {
                 case 'Side':
@@ -430,44 +507,108 @@
             const modIntensityButtons = document.getElementById('mod-intensity-buttons');
             modIntensityButtons.classList.remove('hidden');
 
+            // Load ingredients initially for the entree
+            loadIngredients();
+        }
+
+        function loadIngredients() {
             // Get custom data attributes
             const finishModsButton = document.getElementById('finish-mods-button');
-            const itemID = finishModsButton.dataset.itemID;
+            const seatNumber = finishModsButton.dataset.seatNumber;
+            const itemID = finishModsButton.dataset.itemID
+            const attachedSideID = finishModsButton.dataset.sideID || undefined;
+            const modTargetButtons = document.getElementById('mod-target-buttons');
 
-            fetch(`/get_ingredients/${itemID}`)
+            if(attachedSideID) {
+                modTargetButtons.classList.remove('hidden');
+            } else {
+                modTargetButtons.classList.add('hidden');
+            }
+
+            // Use entree ID or side ID based on mod target
+            const editingID = isModifyingOrderDirectly ? itemID : finishModsButton.dataset.sideID;
+
+            // Decide the correct URL for fetching mods
+            const modsURL = isModifyingOrderDirectly ? `/order/get_mods` : `/order/get_side_mods`;
+
+
+            // Fetch the ingredients for the item
+            fetch(`/get_ingredients/${editingID}`)
                 .then(response => response.json())
                 .then(data => {
                     if (!data.success) {
                         console.error(`Error: ${data.error} (Code: ${data.error_code})`);
                         return;
                     }
-                    
-                    const menuListElement = document.getElementById('menu-list');
-                    menuListElement.innerHTML = '';
-                    
-                    data.ingredients.forEach(ingredient => {
-                        const card = document.createElement('div');
-                        card.classList.add('menu-card');
-                        card.innerHTML = `<h3>${ingredient.name}<h3>`;
-                        
-                        card.addEventListener('click', () => {
-                            // Deselect the previous ingredient card if one is selected
-                            if (selectedIngredient && selectedIngredient !== card) {
-                                selectedIngredient.classList.remove('selected');
-                            }
 
-                            // Toggle the current ingredient card selection
-                            card.classList.toggle('selected');
-                            selectedIngredient = card.classList.contains('selected') ? card : null;
+                    // Fetch the current mods for the item
+                    return fetch(modsURL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ seat_number: seatNumber, item_id: itemID })
+                        })
+                        .then(response => response.json())
+                        .then(modData => {
+                            const currentMods = modData.mods || []; // Array of current mods
+                            const menuListElement = document.getElementById('menu-list');
+                            menuListElement.innerHTML = '';
 
-                            // Check if both ingredient and intensity are selected and log them
-                            logSelection();
+                            data.ingredients.forEach(ingredient => {
+                                const card = document.createElement('div');
+                                card.classList.add('menu-card');
+                                card.innerHTML = `<h3>${ingredient.name}</h3>`;
+
+                                // Check if this ingredient is already modified
+                                const isModded = currentMods.some(mod => mod.ingredient === ingredient.name);
+                                if (isModded) {
+                                    card.classList.add('modded'); // Add modded class
+                                }
+
+                                card.addEventListener('click', () => {
+                                    if (card.classList.contains('modded')) {
+                                        // If already modded, remove the mod
+                                        const removeURL = isModifyingOrderDirectly ? '/order/remove_mod' : '/order/side_remove_mod';
+                                        removeMod(seatNumber, itemID, ingredient.name, removeURL);
+                                        card.classList.remove('modded');
+                                    } else {
+                                        // Deselect the previous ingredient card if one is selected
+                                        if (selectedIngredient && selectedIngredient !== card) {
+                                            selectedIngredient.classList.remove('selected');
+                                        }
+
+                                        // Toggle the current ingredient card selection
+                                        card.classList.toggle('selected');
+                                        selectedIngredient = card.classList.contains('selected') ? card : null;
+
+                                        // Check if both ingredient and intensity are selected and log them
+                                        logSelection();
+                                    }
+                                });
+
+                                menuListElement.appendChild(card);
+                            });
                         });
-                        
-                        menuListElement.appendChild(card);
-                    });
                 })
                 .catch(error => console.error('Unexpected error displaying ingredients:', error));
+        }
+
+        // Function to remove a mod from the backend
+        function removeMod(seatNumber, itemID, ingredient, URL) {
+            fetch(URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ seat_number: seatNumber, item_id: itemID, ingredient: ingredient })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error(`Error removing mod: ${data.error}`);
+                }
+            })
+            .then(() => {
+                refreshOrderDisplay();
+            })
+            .catch(error => console.error('Error removing mod:', error));
         }
 
         function fetchModCategory(modType) {
@@ -486,13 +627,22 @@
             const menuListElement = document.getElementById('menu-list');
             menuListElement.innerHTML = '';
 
+            const finishModsButton = document.getElementById('finish-mods-button');
+            const attachedSideID = finishModsButton.dataset.sideID || undefined;
+
             menuItems.forEach(item => {
                 const card = document.createElement('div');
                 card.classList.add('menu-card');
                 card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
+                card.dataset.itemID = item.id
+
+                // Highlight the card if it matches the attached side ID
+                if (item.id == attachedSideID) {
+                    card.classList.add('selected');  // Apply highlight style
+                }
 
                 card.addEventListener('click', () => {
-                    addSideToEntree(item, seatNumber)
+                    addSideToEntree(item, seatNumber);
                 });
 
                 menuListElement.appendChild(card);
@@ -500,6 +650,19 @@
         }
 
         function addSideToEntree(item) {
+
+            // Set the selected side ID
+            selectedSideID = item.id;
+
+            // Update the UI to reflect the selection
+            document.querySelectorAll('.menu-card').forEach(card => {
+                let id = card.dataset.itemID;
+                if (id == selectedSideID) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
 
             // Get custom data attributes
             const finishModsButton = document.getElementById('finish-mods-button');
@@ -516,8 +679,12 @@
                     side_id: item.id,
                     side_name: item.name
                 })
-            }).then(() => refreshOrderDisplay())
+            }).then(() => {
+                finishModsButton.dataset.sideID = item.id;
+              })
+              .then(() => refreshOrderDisplay())
               .catch(error => console.error('Error adding mod:', error));
+
         }
 
         // Make changes to TempOrder
@@ -550,6 +717,7 @@
                         const card = document.createElement('div');
                         card.classList.add('menu-card');
                         card.innerHTML = `<h3>${item.name}</h3><p>${item.description}</p>`;
+                        card.dataset.itemId = item.id;
 
                         card.addEventListener('click', () => addSideToEntree(item));
 
@@ -559,8 +727,6 @@
                 .catch(error => console.error('Error fetching menu category:', error));
 
         }
-
-        
 
         // Add side as mod to the last selected entree
         function addModToEntree(side) {
@@ -595,9 +761,22 @@
                             itemDiv.innerHTML = `<h3>${item.item_name}</h3>`;
 
                             itemDiv.addEventListener('click', () => {
-                                console.log(`Menu Item ID: ${item.item_id}`);
+                                
+                                // Pull item into the right panel for editing
+                                editModOptions(item, item.seatNumber);
+
+                                // If there is an existing side, set it as the selected side option
                                 if (item.side_option_id) {
-                                    console.log(`Side Item ID: ${item.side_option_id}`);
+                                    handleModOption('Side');
+                                }
+
+                                // If there are existing mods, populate them in the mod options panel
+                                if (item.mods && item.mods.length) {
+                                    item.mods.forEach(mod => {
+                                        // Implement logic to set each mod intensity and ingredient
+                                        // For example, you might call a function to highlight selected mods
+                                        // based on `mod.intensity` and `mod.ingredient`
+                                    });
                                 }
                             });
 
@@ -643,7 +822,10 @@
                 const seatNumber = finishModsButton.dataset.seatNumber;
                 const itemName = finishModsButton.dataset.itemName;
 
-                fetch('/order/intensity_mod', {
+                // Choose the appropriate endpoint based on the mod target
+                const url = isModifyingOrderDirectly ? '/order/intensity_mod' : '/order/side_intensity_mod';
+
+                fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -658,9 +840,15 @@
                     return response.json();
                 })
                 .then(data => {
+                    // Apply the modded class to the modified ingredient
+                    selectedIngredient.classList.add('modded');
+                    
                     // Untoggle both selections
                     selectedIngredient.classList.remove('selected');
                     selectedIntensity.classList.remove('selected');
+
+                    // Update the front end with the current mods list
+                    updateModsDisplay(data.mods);
 
                     // Reset the selected variables
                     selectedIngredient = null;
@@ -673,6 +861,26 @@
                     alert('Failed to add mod to order. Please try again.');
                 });
             }
+        }
+
+        // Function to update the display based on the current mods
+        function updateModsDisplay(mods) {
+            // Clear all modded classes
+            document.querySelectorAll('.menu-card').forEach(card => {
+                card.classList.remove('modded');
+            });
+
+            mods.forEach(mod => {
+                // Find the card with the ingredient name that matches the mod
+                const card = Array.from(document.querySelectorAll('.menu-card')).find(
+                    card => card.querySelector('h3').textContent == mod.ingredient
+                );
+
+                // Apply the modded class to show it has been altered
+                if (card) {
+                    card.classList.add('modded');
+                }
+            });
         }
 
         // Finalize order and clear the display
