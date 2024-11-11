@@ -278,6 +278,16 @@
 
             <button id="go-back-button" class="hidden" onclick="resetCategoryView()">Go Back</button>
 
+            <div id="table-selection">
+                <label for="table-dropdown">Table:</label>
+                <select id="table-dropdown">
+                    <!-- Generating options 1-10 -->
+                    {% for i in range(1, 11) %}
+                        <option value="{{ i }}">{{ i }}</option>
+                    {% endfor %}
+                </select>
+            </div>            
+
             <div id="category-buttons">
                 <button class="category-button" onclick="fetchCategory('Drink')">Drink</button>
                 <button class="category-button" onclick="fetchCategory('Appetizer')">Appetizer</button>
@@ -312,7 +322,7 @@
 
     <script>
         let seatNumber = 1;
-        let tableNum = "1"; // Replace this with the actual table number for each device
+        let tableNum = "1";
 
         // Track the current selections
         let selectedIngredient = null;
@@ -358,6 +368,24 @@
             });
         })();
 
+        // IIFE for table number selection
+        (function() {
+
+            // Set up the event listener to update tableNum when the dropdown changes
+            document.getElementById("table-dropdown").addEventListener("change", function(event) {
+                tableNum = parseInt(event.target.value);  // Update tableNum to the selected value
+                refreshOrderDisplay()
+            });
+
+            // Optional: Display the initial tableNum value in the dropdown
+            document.getElementById("table-dropdown").value = tableNum;
+
+            // Expose tableNum globally if needed
+            window.getTableNum = function() {
+                return tableNum;
+            };
+        })();
+        
         // Fetch category and display items
         function fetchCategory(category) {
             const menuListElement = document.getElementById('menu-list');
@@ -489,9 +517,10 @@
             // Hide category menu
             const menuListElement = document.getElementById('menu-list');
             menuListElement.innerHTML = '';
-
+            document.getElementById('mod-target-buttons').classList.add('hidden');
             switch (modType) {
                 case 'Side':
+                    
                     fetchModCategory('Side');
                     break;
                 case 'Mod':
@@ -908,6 +937,7 @@
             document.getElementById('finish-mods-button').classList.add('hidden');
             document.getElementById('go-back-button').classList.add('hidden');
             document.getElementById('mod-intensity-buttons').classList.add('hidden');
+            document.getElementById('mod-target-buttons').classList.add('hidden');
             document.getElementById('menu-list').innerHTML = '';
         }
     </script>
