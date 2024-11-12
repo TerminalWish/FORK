@@ -43,8 +43,7 @@ class TempOrder(db.Model):
         return {
             'seat_number': self.seat_number,
             'item_id': self.item_id,
-            'item_name': self.item_name,
-            'mod_name': self.mod_name
+            'item_name': self.item_name
         }
 
 @app.route('/')
@@ -208,34 +207,34 @@ def add_mod_to_item():
 @app.route('/order/finalize', methods=['POST'])
 def finalize_order():
     table_num = request.json.get('table_num')
-    
+
     # Retrieve all items for the given table number
     orders = TempOrder.query.filter_by(table_num=table_num).all()
-    final_order = {}
-    
-    for order in orders:
-        if order.seat_number not in final_order:
-            final_order[order.seat_number] = {
-                'item_id': order.item_id,
-                'item_name': order.item_name,
-                'mods': []
-            }
-        if order.mods:
-            # Parse the JSON string into a list of mod dictionaries
-            mods_list = json.loads(order.mods)
+    final_order = []
 
-            # Append each mod to the order dictionary under 'mods'
-            for mod in mods_list:
-                final_order[order.seat_number]['mods'].append(mod)
-    
-    # Delete all entries for the table number after finalizing
-    TempOrder.query.filter_by(table_num=table_num).delete()
-    db.session.commit()
-    
-    # TODO: Send `final_order` to FORK for permanent storage (implement as needed)
+    for order in orders:
+        item_data = {
+            'table_num': table_num,
+            'item_id': order.item_id,
+            'side_option_id': order.side_option_id,
+            'mods': json.loads(order.mods) if order.mods else [],
+            'side_mods': json.loads(order.side_mods) if order.side_mods else []
+        }
+        final_order.append(item_data)
+
+    # Send final_order to Fork for permanence
+    try:
+        place_order_url = urljoin(SERVER_URL, '/orders/place')
+        response = requests.post(place_order_url, json={'orders': final_order}, timeout=5)
+        
+        # Clear all entries for this table from TempOrder after finalizing
+        TempOrder.query.filter_by(table_num=table_num).delete()
+        db.session.commit()
+        response.raise_for_status()
+    except requests.RequestException as e:
+        return jsonify({'error': 'Failed to send order to Fork', 'details': str(e)}), 500
     
     return jsonify({'message': f'Order for table {table_num} finalized', 'final_order': final_order})
-
     
 @app.route('/order/get', methods=['GET'])
 def get_current_order():
