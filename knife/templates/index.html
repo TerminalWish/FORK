@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Knife WebSocket Client</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Listening for Order Updates...</h1>
+
+    <script>
+        // Connect to Knife Server via WebSocket
+        const socket = io.connect('http://localhost:5002');
+
+        socket.on('connect', () => {
+            console.log('Connected to Knife server');
+        });
+
+        // Listen for 'order_update' events from Knife
+        socket.on('order_update', (data) => {
+            console.log('Received order update:', data);
+            // Display or process data as needed
+        });
+
+        // Handle connection errors
+        socket.on('connect_error', (err) => {
+            console.log('Connection error:', err.message);
+        });
+    </script>
+</body>
+</html>
