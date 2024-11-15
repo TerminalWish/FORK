@@ -2,30 +2,242 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Knife WebSocket Client</title>
+    <title>Knife WebSocket Client - Prep Screen</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.min.js"></script>
+    <style>
+        /* Basic styling for three-panel layout */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+        .panel {
+            flex: 1;
+            border: 1px solid #ddd;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .panel-right {
+            background-color: #f5f5f5;
+        }
+        .panel-center {
+            background-color: #fff;
+        }
+        .panel-left {
+            background-color: #f0f0f0;
+            position: relative;
+        }
+        .card {
+            padding: 15px;
+            margin-bottom: 10px;
+            border: 1px solid #aaa;
+            cursor: pointer;
+        }
+        .card.collected {
+            background-color: #d4edda;  /* Light green background for collected ingredients */
+            text-decoration: line-through;  /* Strike-through effect */
+        }
+        .card.highlighted {
+            border: 2px solid #007bff; /* Blue border to indicate selection */
+            background-color: #f0f8ff; /* Light blue background for emphasis */
+        }
+        .bump-button {
+            display: none; /* Hidden by default */
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .bump-button.show {
+            display: block; /* Show the button when all ingredients are collected */
+        }
+    </style>
 </head>
 <body>
-    <h1>Listening for Order Updates...</h1>
+    <h1>Prep Screen</h1>
+    <div class="container">
+        <!-- Left panel for ingredients of a selected order -->
+        <div id="ingredients-panel" class="panel panel-left">
+            <button id="bump-button" class="bump-button">Bump</button>
+        </div>
+        
+        <!-- Center panel for individual orders within a selected table order -->
+        <div id="orders-panel" class="panel panel-center"></div>
+        
+        <!-- Right panel for table orders -->
+        <div id="table-orders-panel" class="panel panel-right"></div>
+    </div>
 
     <script>
         // Connect to Knife Server via WebSocket
         const socket = io.connect('http://localhost:5002');
-
+        
         socket.on('connect', () => {
             console.log('Connected to Knife server');
         });
 
-        // Listen for 'order_update' events from Knife
         socket.on('order_update', (data) => {
             console.log('Received order update:', data);
-            // Display or process data as needed
+            updateTableOrders(data);
         });
 
-        // Handle connection errors
         socket.on('connect_error', (err) => {
             console.log('Connection error:', err.message);
         });
+
+        function addBumpButton() {
+            // Create the bump button once and append it to the ingredients panel
+            const ingredientsPanel = document.getElementById('ingredients-panel');
+            const bumpButton = document.createElement('button');
+            bumpButton.classList.add('bump-button');
+            bumpButton.textContent = 'Bump';
+            ingredientsPanel.appendChild(bumpButton);
+
+            // Add a single onclick event for the bump button
+            bumpButton.onclick = () => {
+                // Clear the left panel (ingredients list)
+                ingredientsPanel.innerHTML = '';
+
+                // Find the currently displayed order card in the center panel and remove it
+                const centerPanel = document.getElementById('orders-panel');
+                const orderCard = centerPanel.querySelector('.card.highlighted'); // Assuming a 'highlighted' class is added to the current card
+                if (orderCard) {
+                    centerPanel.removeChild(orderCard);
+                }
+
+                // Hide the bump button after bumping
+                bumpButton.classList.remove('show');
+            };
+
+            return bumpButton
+        }
+
+        function updateTableOrders(data) {
+            const tableOrdersPanel = document.getElementById('table-orders-panel');
+
+            if (data.length === 0) {
+                console.warn("No orders found for this table.");
+                return;
+            }
+
+            // Create a card for the table
+            const tableCard = document.createElement('div');
+            tableCard.classList.add('card');
+
+            // Set the table number as the heading (assuming all orders are for the same table)
+            const tableHeading = document.createElement('h2');
+            tableHeading.textContent = `Table ${data[0].table_num}`;
+            tableCard.appendChild(tableHeading);
+
+            // Create a list of order IDs
+            const orderList = document.createElement('ul');
+
+            data.forEach(order => {
+                const orderItem = document.createElement('li');
+                orderItem.textContent = `${order.item_name}`;
+                
+                // Optional: store the item ID for future reference
+                orderItem.dataset.itemId = order.item_id;
+
+                // Add each order item to the list
+                orderList.appendChild(orderItem);
+            });
+
+            // Append the order list to the table card
+            tableCard.appendChild(orderList);
+
+            // Add click event to the table card to populate the center panel
+            tableCard.addEventListener('click', () => {
+                populateCenterPanel(data);
+            });
+
+            // Add the table card to the panel
+            tableOrdersPanel.appendChild(tableCard);
+        }
+
+        function populateCenterPanel(orders) {
+            const centerPanel = document.getElementById('orders-panel');
+            centerPanel.innerHTML = ''; // Clear existing content
+            const ingredientsPanel = document.getElementById('ingredients-panel');
+            ingredientsPanel.innerHTML = ''; // Clear existing ingredients
+
+            // Create a card for each order item and display the item ID
+            orders.forEach(order => {
+                const orderCard = document.createElement('div');
+                orderCard.classList.add('card');
+                orderCard.textContent = `${order.item_name}`;
+                
+                // Store item ID for future reference
+                orderCard.dataset.itemId = order.item_id;
+
+                // Attach click event to display ingredients
+                orderCard.addEventListener('click', () => {
+                    // Remove highlighted class from any other cards
+                    const highlightedCard = centerPanel.querySelector('.card.highlighted');
+                    if (highlightedCard) {
+                        highlightedCard.classList.remove('highlighted');
+                    }
+
+                    // Add highlighted class to the clicked card
+                    orderCard.classList.add('highlighted');
+
+                    // Display the ingredients for this order in the left panel
+                    displayIngredientsForItem(order.ingredients, orderCard);
+                });
+
+                // Append each order card to the center panel
+                centerPanel.appendChild(orderCard);
+            });
+        }
+
+        function displayIngredientsForItem(ingredients, orderCard) {
+            const ingredientsPanel = document.getElementById('ingredients-panel');
+            ingredientsPanel.innerHTML = ''; // Clear existing ingredients
+            const centerPanel = document.getElementById('orders-panel');
+
+            bumpButton = addBumpButton()
+
+            ingredients.forEach(ingredient => {
+                        const ingredientCard = document.createElement('div');
+                        ingredientCard.classList.add('card');
+                        ingredientCard.textContent = `${ingredient.name} - ${ingredient.quantity} ${ingredient.measurement}`;
+
+                        // Toggle collected state on click
+                        ingredientCard.addEventListener('click', () => {
+                            ingredientCard.classList.toggle('collected');
+
+                            // Check if all ingredients are collected
+                            bumpButton.classList.add('collected');
+                            const allCollected = Array.from(ingredientsPanel.children).every(item => 
+                                item.classList.contains('collected')
+                            );
+                            bumpButton.classList.remove('collected');
+
+                            if(allCollected) {
+                                bumpButton.classList.add('show');
+                            } else {
+                                bumpButton.classList.remove('show');
+                            }
+                        });
+
+                        ingredientsPanel.appendChild(ingredientCard);
+
+                    });
+        }
+
+        
     </script>
 </body>
 </html>

@@ -81,6 +81,44 @@ class MenuIngredient(db.Model):
     def __repr__(self):
         return f'<MenuIngredient {self.menu_id, self.ingredient_id}>'
 
+### Cache building routes
+@app.route('/menu_data', methods=['GET'])
+def menu_data_cache():
+    menu_items = Menu.query.all()
+    menu_data = [
+        {
+            'id': item.id,
+            'name': item.name,
+            'category': item.category,
+            'availability': item.availability
+        } for item in menu_items
+    ]
+    return jsonify(menu_data)
+
+@app.route('/ingredient_data', methods=['GET'])
+def ingredient_data_cache():
+    ingredient_items = Ingredient.query.all()
+    ingredient_data = [
+        {
+            'id': item.id,
+            'name': item.name
+        } for item in ingredient_items
+    ]
+    return jsonify(ingredient_data)
+
+@app.route('/menu_ingredient_data', methods=['GET'])
+def menu_ingredient_data_cache():
+    menu_ingredient_items = MenuIngredient.query.all()
+    menu_ingredient_data = [
+        {
+            'menu_id': item.menu_id,
+            'ingredient_id': item.ingredient_id,
+            'quantity': item.quantity,
+            'measurement': item.measurement
+        } for item in menu_ingredient_items
+    ]
+    return jsonify(menu_ingredient_data)
+
 ### Routing Methods
 @app.route('/menu', methods=['GET'])
 def get_menu():
