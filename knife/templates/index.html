@@ -63,6 +63,10 @@
         .bump-button.show {
             display: block; /* Show the button when all ingredients are collected */
         }
+        .card ul li.collected {
+            text-decoration: line-through;
+            color: #888; /* Optional: Greyed-out color */
+        }
     </style>
 </head>
 <body>
@@ -89,7 +93,6 @@
         });
 
         socket.on('order_update', (data) => {
-            console.log('Received order update:', data);
             updateTableOrders(data);
         });
 
@@ -114,7 +117,31 @@
                 const centerPanel = document.getElementById('orders-panel');
                 const orderCard = centerPanel.querySelector('.card.highlighted'); // Assuming a 'highlighted' class is added to the current card
                 if (orderCard) {
+                    // Remove the order card from the center panel
+                    const itemId = orderCard.dataset.itemId; // Get the item ID for lookup
                     centerPanel.removeChild(orderCard);
+
+                    // Cross out the corresponding item in the right panel's table order
+                    const tableOrdersPanel = document.getElementById('table-orders-panel');
+                    const tableCards = tableOrdersPanel.querySelectorAll('.card'); // Find all table cards
+                    tableCards.forEach(tableCard => {
+                        const orderItems = tableCard.querySelectorAll('li');
+                        orderItems.forEach(orderItem => {
+                            if (orderItem.dataset.itemId === itemId) {
+                                orderItem.classList.add('collected'); // Add CSS class for strikethrough
+                            }
+                        });
+
+                        // Check if all items in the table order are crossed off
+                        const allCollected = Array.from(orderItems).every(item =>
+                            item.classList.contains('collected')
+                        );
+
+                        // If all items are collected, remove the table card
+                        if (allCollected) {
+                            tableOrdersPanel.removeChild(tableCard);
+                        }
+                    });
                 }
 
                 // Hide the bump button after bumping
@@ -124,34 +151,99 @@
             return bumpButton
         }
 
+        // 
+        
         function updateTableOrders(data) {
             const tableOrdersPanel = document.getElementById('table-orders-panel');
 
-            if (data.length === 0) {
-                console.warn("No orders found for this table.");
+            // Step 1: Filter out orders with status other than 'new'
+            const newOrders = data.filter(order => order.status === 'new');
+
+            if (newOrders.length === 0) {
+                console.warn("No new orders to display.");
                 return;
             }
 
+            // Step 2: Group orders by table number
+            const ordersByTable = {};
+            newOrders.forEach(order => {
+                if (!ordersByTable[order.table_num]) {
+                    ordersByTable[order.table_num] = [];
+                }
+                ordersByTable[order.table_num].push(order);
+            });
+
+            // Step 3: Update or create table cards for each table
+            Object.keys(ordersByTable).forEach(tableNum => {
+                const existingTableCard = Array.from(tableOrdersPanel.children).find(
+                    card => card.dataset.tableNum === tableNum
+                );
+
+                if (existingTableCard) {
+                    // Update existing table card
+                    updateTableCard(existingTableCard, ordersByTable[tableNum]);
+                } else {
+                    // Create a new table card
+                    createNewTableCard(tableOrdersPanel, tableNum, ordersByTable[tableNum]);
+                }
+            });
+        }
+
+        function updateTableCard(tableCard, orders) {
+            const orderList = tableCard.querySelector('ul');
+
+            // Track existing items to preserve `collected` state
+            const existingItems = {};
+            orderList.querySelectorAll('li').forEach(item => {
+                const itemId = item.dataset.itemId;
+                existingItems[itemId] = item.classList.contains('collected');
+            });
+
+            // Clear the list and repopulate with updated orders
+            orderList.innerHTML = '';
+            orders.forEach(order => {
+                const orderItem = document.createElement('li');
+                orderItem.textContent = `${order.item_name}`;
+                orderItem.dataset.itemId = order.item_id;
+
+                // Restore `collected` state if it was marked previously
+                if (existingItems[order.item_id]) {
+                    orderItem.classList.add('collected');
+                }
+
+                orderList.appendChild(orderItem);
+            });
+
+            // Remove the old click event by cloning and replacing the card
+            const newTableCard = tableCard.cloneNode(true);
+
+            // Add a fresh click event with the updated `orders`
+            newTableCard.addEventListener('click', () => {
+                populateCenterPanel(orders);
+            });
+
+            // Replace the old table card in the DOM
+            tableCard.replaceWith(newTableCard);
+        }
+
+        function createNewTableCard(panel, tableNum, orders) {
             // Create a card for the table
             const tableCard = document.createElement('div');
             tableCard.classList.add('card');
+            tableCard.dataset.tableNum = tableNum;
 
-            // Set the table number as the heading (assuming all orders are for the same table)
+            // Set the table number as the heading
             const tableHeading = document.createElement('h2');
-            tableHeading.textContent = `Table ${data[0].table_num}`;
+            tableHeading.textContent = `Table ${tableNum}`;
             tableCard.appendChild(tableHeading);
 
             // Create a list of order IDs
             const orderList = document.createElement('ul');
-
-            data.forEach(order => {
+            orders.forEach(order => {
                 const orderItem = document.createElement('li');
                 orderItem.textContent = `${order.item_name}`;
-                
-                // Optional: store the item ID for future reference
                 orderItem.dataset.itemId = order.item_id;
 
-                // Add each order item to the list
                 orderList.appendChild(orderItem);
             });
 
@@ -160,12 +252,13 @@
 
             // Add click event to the table card to populate the center panel
             tableCard.addEventListener('click', () => {
-                populateCenterPanel(data);
+                populateCenterPanel(orders);
             });
 
             // Add the table card to the panel
-            tableOrdersPanel.appendChild(tableCard);
+            panel.appendChild(tableCard);
         }
+
 
         function populateCenterPanel(orders) {
             const centerPanel = document.getElementById('orders-panel');
@@ -173,27 +266,46 @@
             const ingredientsPanel = document.getElementById('ingredients-panel');
             ingredientsPanel.innerHTML = ''; // Clear existing ingredients
 
-            // Create a card for each order item and display the item ID
+            // Get the right panel and find the table card
+            const tableOrdersPanel = document.getElementById('table-orders-panel');
+
+            // Iterate through the orders to populate the center panel
             orders.forEach(order => {
+                // Find the corresponding table card
+                const tableCard = Array.from(tableOrdersPanel.children).find(card => 
+                    card.dataset.tableNum == order.table_num
+                );
+
+                console.log(`Searching for table card with table_num: ${order.table_num}`);
+                console.log(`Found table card:`, tableCard);
+
+                // Collect IDs of completed items
+                const collectedItems = new Set();
+                if (tableCard) {
+                    tableCard.querySelectorAll('li.collected').forEach(item => {
+                        console.log(item.dataset.itemId)
+                        collectedItems.add(item.dataset.itemId);
+                    });
+                }
+
+                // Skip items that are already marked as collected
+                if (collectedItems.has(order.item_id.toString())) {
+                    return;
+                }
+
+                // Create a card for the order item
                 const orderCard = document.createElement('div');
                 orderCard.classList.add('card');
                 orderCard.textContent = `${order.item_name}`;
-                
-                // Store item ID for future reference
                 orderCard.dataset.itemId = order.item_id;
 
                 // Attach click event to display ingredients
                 orderCard.addEventListener('click', () => {
-                    // Remove highlighted class from any other cards
                     const highlightedCard = centerPanel.querySelector('.card.highlighted');
                     if (highlightedCard) {
                         highlightedCard.classList.remove('highlighted');
                     }
-
-                    // Add highlighted class to the clicked card
                     orderCard.classList.add('highlighted');
-
-                    // Display the ingredients for this order in the left panel
                     displayIngredientsForItem(order.ingredients, orderCard);
                 });
 
